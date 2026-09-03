@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 project(polyPi CXX C)
 
+# Single source of truth for the version: the compile definition below and the
+# macOS bundle properties both read this, so they cannot disagree.
+set(POLYPI_VERSION "0.1.2")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
@@ -90,8 +94,8 @@ if(APPLE)
     MACOSX_BUNDLE_BUNDLE_NAME "polyPi"
     MACOSX_BUNDLE_DISPLAY_NAME "polyPi"
     MACOSX_BUNDLE_GUI_IDENTIFIER "dev.polypi.app"
-    MACOSX_BUNDLE_BUNDLE_VERSION "0.1.1"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1.1"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${POLYPI_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${POLYPI_VERSION}"
     MACOSX_BUNDLE_ICON_FILE "polypi.icns"
   )
 endif()
@@ -100,7 +104,7 @@ if(APPLE)
   target_link_libraries(polyPi PRIVATE "-framework CoreFoundation" "-framework Cocoa" "-framework IOKit")
 endif()
 
-target_compile_definitions(polyPi PRIVATE POLYPI_VERSION="0.1.0")
+target_compile_definitions(polyPi PRIVATE POLYPI_VERSION="${POLYPI_VERSION}")
 
 if(WIN32)
   # ship the dependency DLLs beside the exe so it runs outside the build tree
