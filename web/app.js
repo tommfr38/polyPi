@@ -117,7 +117,7 @@ function drawFrame(now) {
   ctx.clearRect(0, 0, W, H);
 
   if (animState === "idle") {
-    ctx.fillStyle = "rgba(57,255,106,0.25)";
+    ctx.fillStyle = "rgba(61,220,120,0.25)";
     const t = now / 1800;
     particles.forEach((p, i) => {
       const drift = Math.sin(t + i) * 1.2;
@@ -145,8 +145,8 @@ function drawFrame(now) {
       const drawX = animState === "holding" ? p.tx + jx : p.x;
       const drawY = animState === "holding" ? p.ty + jy : p.y;
       ctx.beginPath();
-      ctx.fillStyle = "rgba(57,255,106,0.9)";
-      ctx.shadowColor = "rgba(57,255,106,0.9)";
+      ctx.fillStyle = "rgba(61,220,120,0.9)";
+      ctx.shadowColor = "rgba(61,220,120,0.9)";
       ctx.shadowBlur = 6;
       ctx.arc(drawX, drawY, p.r, 0, Math.PI * 2);
       ctx.fill();
@@ -158,7 +158,7 @@ function drawFrame(now) {
     const glow = 6 + Math.sin(t * Math.PI) * 22;
     particles.forEach((p) => {
       ctx.beginPath();
-      ctx.fillStyle = `rgba(${Math.round(57 + t * 140)},255,${Math.round(106 + t * 80)},1)`;
+      ctx.fillStyle = `rgba(${Math.round(61 + t * 140)},${Math.round(220 + t * 35)},${Math.round(120 + t * 60)},1)`;
       ctx.shadowColor = "rgba(120,255,180,1)";
       ctx.shadowBlur = glow;
       ctx.arc(p.tx, p.ty, p.r * (1 + t * 0.4), 0, Math.PI * 2);
@@ -184,10 +184,10 @@ worker.onmessage = (e) => {
   const msg = e.data;
   pending = false;
   els.computeBtn.disabled = false;
-  els.computeBtn.textContent = "COMPUTE π";
+  els.computeBtn.textContent = "COUNT π";
 
   if (!msg.ok) {
-    setOverlay(true, "ERROR", "computation failed — try fewer digits");
+    setOverlay(true, "ERROR", "something went wrong — try fewer digits");
     return;
   }
 
@@ -263,9 +263,9 @@ els.computeBtn.addEventListener("click", () => {
   const digits = clampDigits();
   pending = true;
   els.computeBtn.disabled = true;
-  els.computeBtn.textContent = "COMPUTING…";
+  els.computeBtn.textContent = "COUNTING…";
   els.results.classList.remove("visible");
-  setOverlay(true, "COMPUTING", `assembling ${digits.toLocaleString()} digits`);
+  setOverlay(true, "COUNTING", `${digits.toLocaleString()} digits`);
   startForming();
   worker.postMessage({ digits });
 });
@@ -289,10 +289,10 @@ els.copyBtn.addEventListener("click", async () => {
   const full = els.digitsBox.dataset.full || "";
   try {
     await navigator.clipboard.writeText(full);
-    els.copyBtn.textContent = "COPIED";
-    setTimeout(() => (els.copyBtn.textContent = "COPY"), 1200);
+    els.copyBtn.textContent = "Copied";
+    setTimeout(() => (els.copyBtn.textContent = "Copy"), 1200);
   } catch {
-    els.copyBtn.textContent = "COPY FAILED";
+    els.copyBtn.textContent = "Copy failed";
   }
 });
 

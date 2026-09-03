@@ -122,17 +122,13 @@ int main(int, char **) {
                       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                           ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.66f, 1.0f, 0.81f, 1.0f));
-        ImGui::TextDisabled("POLYPI // DESKTOP  |  v" POLYPI_VERSION);
-        ImGui::PopStyleColor();
-
         ImGui::PushFont(nullptr);
-        ImGui::SetWindowFontScale(1.6f);
-        ImGui::TextColored(ImVec4(0.85f, 1.0f, 0.9f, 1.0f), "PI COUNTER");
+        ImGui::SetWindowFontScale(1.7f);
+        ImGui::TextColored(ImVec4(0.24f, 0.86f, 0.47f, 1.0f), "polyPi");
         ImGui::SetWindowFontScale(1.0f);
         ImGui::PopFont();
 
-        ImGui::TextDisabled("Multi-threaded Chudnovsky binary splitting, GMP-backed. No web caps.");
+        ImGui::TextDisabled("A tool that helps you count Pi.  -  v" POLYPI_VERSION);
         ImGui::Spacing();
 
         // ---- update banner ----
@@ -224,15 +220,15 @@ int main(int, char **) {
         }
 
         ImGui::Spacing();
-        ImGui::Text("Speed - worker threads (%d available)", maxThreads);
+        ImGui::Text("Speed (%d threads available)", maxThreads);
         ImGui::SetNextItemWidth(300);
         ImGui::SliderInt("##threads", &threadCount, 1, maxThreads, "%d threads");
-        ImGui::TextDisabled("Full speed here - this is the desktop app. More threads = faster on large digit counts.");
+        ImGui::TextDisabled("More threads = faster on large digit counts.");
 
         ImGui::Spacing();
         bool isRunning = worker.isRunning();
         if (!isRunning) {
-            if (ImGui::Button(hasResult ? "COMPUTE AGAIN" : "COMPUTE PI", ImVec2(200, 42)) || enterPressed) {
+            if (ImGui::Button(hasResult ? "COUNT AGAIN" : "COUNT PI", ImVec2(200, 42)) || enterPressed) {
                 hasResult = false;
                 animState = 1;
                 worker.start(digitsWanted, threadCount);
