@@ -59,7 +59,8 @@ long pi_terms_for_digits(long digits);
 /* Turn a finished (P,Q,T) for range [0,N) into a decimal string "3.1415...."
  * with exactly `digits` digits after the point. Caller frees with pi_free.
  * `progress` may be NULL; when given, the phase is reported and the cancel
- * flag is honoured between stages, in which case NULL is returned. */
+ * flag is honoured between stages, in which case NULL is returned.
+ * Consumes `r`: it is cleared here, so the caller must not clear it again. */
 char *pi_finalize(long digits, const pi_bs_t *r, pi_progress_t *progress);
 
 void pi_free(char *s);

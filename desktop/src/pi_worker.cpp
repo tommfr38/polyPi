@@ -99,10 +99,8 @@ void PiWorker::runInner(long digits, int threads) {
         acc = next;
     }
 
-    char *out = pi_finalize(digits, &acc, &progress_->p);
-
-    pi_bs_clear(&acc);
-    for (auto &c : chunks) pi_bs_clear(&c);
+    for (auto &c : chunks) pi_bs_clear(&c);   /* before finalize, not after */
+    char *out = pi_finalize(digits, &acc, &progress_->p);  /* consumes acc */
     endTime_ = std::chrono::steady_clock::now();
 
     if (!out) { // cancelled, or the final buffer couldn't be allocated

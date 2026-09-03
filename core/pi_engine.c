@@ -117,6 +117,7 @@ char *pi_finalize(long digits, const pi_bs_t *r, pi_progress_t *progress) {
 
     mpf_t Qf, Tf, sqrtC, num, pi;
     mp_exp_t exp;
+    int freed_temps = 0;
     char *raw = NULL;
     char *out = NULL;
 
@@ -128,6 +129,9 @@ char *pi_finalize(long digits, const pi_bs_t *r, pi_progress_t *progress) {
 
     mpf_set_z(Qf, r->Q);
     mpf_set_z(Tf, r->T);
+    /* the caller's P/Q/T are dead weight from here on - at a billion digits
+     * that is well over a gigabyte held for no reason */
+    pi_bs_clear((pi_bs_t *)r);
 
     /* Each of the steps below is a single opaque GMP call, so the cancel flag
      * can only be honoured between them - the string conversion in particular
@@ -139,6 +143,14 @@ char *pi_finalize(long digits, const pi_bs_t *r, pi_progress_t *progress) {
 
     if (cancelled(progress)) goto done;
     mpf_div(pi, num, Tf);
+
+    /* only `pi` is needed for the conversion; release the rest first so the
+     * string allocation isn't competing with them */
+    mpf_clear(Qf);
+    mpf_clear(Tf);
+    mpf_clear(sqrtC);
+    mpf_clear(num);
+    freed_temps = 1;
 
     if (cancelled(progress)) goto done;
     /* ask for digits+1 significant digits (the leading "3" plus the rest) */
@@ -162,13 +174,17 @@ char *pi_finalize(long digits, const pi_bs_t *r, pi_progress_t *progress) {
         memset(out + 2 + copy, '0', (size_t)digits - copy);
         out[digits + 2] = '\0';
     }
+    free(raw);          /* another full-size buffer; don't hold it */
+    raw = NULL;
 
 done:
     free(raw);
-    mpf_clear(Qf);
-    mpf_clear(Tf);
-    mpf_clear(sqrtC);
-    mpf_clear(num);
+    if (!freed_temps) {
+        mpf_clear(Qf);
+        mpf_clear(Tf);
+        mpf_clear(sqrtC);
+        mpf_clear(num);
+    }
     mpf_clear(pi);
 
     return out;
@@ -194,8 +210,7 @@ int pi_compute(long digits, pi_progress_t *progress, char **out) {
         return -2;
     }
 
-    *out = pi_finalize(digits, &r, progress);
-    pi_bs_clear(&r);
+    *out = pi_finalize(digits, &r, progress);  /* consumes r */
     if (!*out) return -2;
     return 0;
 }

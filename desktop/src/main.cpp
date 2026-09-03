@@ -264,8 +264,24 @@ int main(int, char **) {
         if (digitsWanted < 1) digitsWanted = 1;
         if (digitsWanted > 2000000000L) digitsWanted = 2000000000L;
 
-        if (digitsWanted > 50000000) {
-            ImGui::TextColored(ImVec4(1, 0.75f, 0.3f, 1), "Large computation: expect significant time and RAM (several GB+).");
+        // Measured peak is ~21 bytes per digit, dominated by the merge phase
+        // of the binary splitting - so the ceiling is RAM, not patience, and
+        // overshooting it kills the run mid-count. Say so up front.
+        {
+            double needGB = digitsWanted * 21.0 / 1073741824.0;
+            int ramMB = SDL_GetSystemRAM();
+            double ramGB = ramMB > 0 ? ramMB / 1024.0 : 0.0;
+            if (needGB >= 0.5) {
+                bool overRam = ramGB > 0.0 && needGB > ramGB * 0.75;
+                ImGui::TextColored(overRam ? ImVec4(1, 0.42f, 0.42f, 1) : ImVec4(1, 0.75f, 0.3f, 1),
+                                   "Needs roughly %.1f GB of RAM%s%s", needGB,
+                                   ramGB > 0.0 ? " of your " : "",
+                                   ramGB > 0.0 ? (std::to_string((int)(ramGB + 0.5)) + " GB").c_str() : "");
+                if (overRam) {
+                    ImGui::TextColored(ImVec4(1, 0.42f, 0.42f, 1),
+                                       "That likely won't fit alongside your other apps - the run would fail part-way.");
+                }
+            }
         }
 
         ImGui::Spacing();
