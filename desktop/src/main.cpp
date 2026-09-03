@@ -281,6 +281,12 @@ int main(int, char **) {
         if (!isRunning) {
             if (ImGui::Button(hasResult ? "COUNT AGAIN" : "COUNT PI", ImVec2(200, 42)) || enterPressed) {
                 hasResult = false;
+                // drop the old digits first - at these sizes holding the
+                // previous result while allocating the next one is what
+                // pushes a big run into an out-of-memory failure
+                std::string().swap(digitsView.text);
+                std::vector<int>().swap(digitsView.lineStart);
+                lastSavePath.clear();
                 animState = 1;
                 worker.start(digitsWanted, threadCount);
             }
@@ -317,6 +323,12 @@ int main(int, char **) {
         if (cancelPending && !isRunning) {
             cancelPending = false;
             if (worker.wasCancelled()) animState = 0;
+        }
+
+        if (worker.hasError() && !isRunning) {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1, 0.42f, 0.42f, 1),
+                               "Ran out of memory at that size - try fewer digits.");
         }
 
         if (worker.isDone() && !hasResult) {

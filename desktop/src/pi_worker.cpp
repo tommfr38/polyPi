@@ -36,6 +36,18 @@ void PiWorker::start(long digits, int threads) {
 }
 
 void PiWorker::run(long digits, int threads) {
+    try {
+        runInner(digits, threads);
+    } catch (const std::exception &) {
+        // out of memory is the realistic case here; report it instead of
+        // letting the exception escape the thread and abort the process
+        error_ = true;
+        running_ = false;
+        endTime_ = std::chrono::steady_clock::now();
+    }
+}
+
+void PiWorker::runInner(long digits, int threads) {
     long terms = pi_terms_for_digits(digits);
     progress_->p.leaves_total = terms;
     progress_->p.leaves_done = 0;
@@ -93,8 +105,8 @@ void PiWorker::run(long digits, int threads) {
     for (auto &c : chunks) pi_bs_clear(&c);
     endTime_ = std::chrono::steady_clock::now();
 
-    if (!out) { // cancelled part-way through finalizing
-        cancelled_ = true;
+    if (!out) { // cancelled, or the final buffer couldn't be allocated
+        if (PI_LOAD(&progress_->p.cancel)) cancelled_ = true; else error_ = true;
         running_ = false;
         return;
     }

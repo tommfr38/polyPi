@@ -154,7 +154,8 @@ char *pi_finalize(long digits, const pi_bs_t *r, pi_progress_t *progress) {
         size_t after_point = got - 1;
         size_t copy = after_point < (size_t)digits ? after_point : (size_t)digits;
 
-        out = (char *)malloc(digits + 3);
+        out = (char *)malloc((size_t)digits + 3);
+        if (!out) goto done;   /* at these sizes the allocation really can fail */
         out[0] = raw[0];
         out[1] = '.';
         memcpy(out + 2, raw + 1, copy);

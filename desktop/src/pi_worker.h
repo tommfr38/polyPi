@@ -33,6 +33,7 @@ public:
 
 private:
     void run(long digits, int threads);
+    void runInner(long digits, int threads);
 
     std::thread thread_;
     struct ProgressState; // wraps pi_progress_t, defined in .cpp to avoid leaking gmp.h here
