@@ -5,5 +5,5 @@
 #define POLYPI_GITHUB_REPO "tommfr38/polyPi"
 
 #ifndef POLYPI_VERSION
-#define POLYPI_VERSION "0.1.0"
+#define POLYPI_VERSION "0.1.1"
 #endif
