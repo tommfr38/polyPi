@@ -14,7 +14,7 @@ PiWorker::~PiWorker() {
 }
 
 void PiWorker::cancel() {
-    if (progress_) __atomic_store_n(&progress_->p.cancel, 1, __ATOMIC_RELAXED);
+    if (progress_) PI_STORE(&progress_->p.cancel, 1);
 }
 
 void PiWorker::start(long digits, int threads) {
@@ -65,7 +65,7 @@ void PiWorker::run(long digits, int threads) {
     }
     for (auto &t : workers) t.join();
 
-    if (__atomic_load_n(&progress_->p.cancel, __ATOMIC_RELAXED)) {
+    if (PI_LOAD(&progress_->p.cancel)) {
         for (auto &c : chunks) pi_bs_clear(&c);
         endTime_ = std::chrono::steady_clock::now();
         cancelled_ = true;
@@ -111,7 +111,7 @@ void PiWorker::run(long digits, int threads) {
 
 bool PiWorker::isFinalizing() const {
     if (!progress_) return false;
-    return __atomic_load_n(&progress_->p.phase, __ATOMIC_RELAXED) == PI_PHASE_FINALIZING;
+    return PI_LOAD(&progress_->p.phase) == PI_PHASE_FINALIZING;
 }
 
 double PiWorker::progress() const {

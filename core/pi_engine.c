@@ -44,7 +44,7 @@ void pi_bs_combine(const pi_bs_t *left, const pi_bs_t *right, pi_bs_t *out) {
 }
 
 static int cancelled(const pi_progress_t *progress) {
-    return progress && __atomic_load_n(&progress->cancel, __ATOMIC_RELAXED);
+    return progress && PI_LOAD(&progress->cancel);
 }
 
 static void set_identity(pi_bs_t *out) {
@@ -60,8 +60,8 @@ void pi_bs_compute(long a, long b, pi_bs_t *out, pi_progress_t *progress) {
     }
 
     if (b - a == 1) {
-        static __thread int have_c3 = 0;
-        static __thread mpz_t c3;
+        static PI_THREAD_LOCAL int have_c3 = 0;
+        static PI_THREAD_LOCAL mpz_t c3;
         if (!have_c3) {
             c3_over_24(c3);
             have_c3 = 1;
@@ -87,7 +87,7 @@ void pi_bs_compute(long a, long b, pi_bs_t *out, pi_progress_t *progress) {
         if (a & 1) mpz_neg(out->T, out->T);
         mpz_clear(t);
 
-        if (progress) __atomic_add_fetch(&progress->leaves_done, 1, __ATOMIC_RELAXED);
+        if (progress) PI_INC(&progress->leaves_done);
         return;
     }
 
@@ -110,7 +110,7 @@ void pi_bs_compute(long a, long b, pi_bs_t *out, pi_progress_t *progress) {
 }
 
 char *pi_finalize(long digits, const pi_bs_t *r, pi_progress_t *progress) {
-    if (progress) __atomic_store_n(&progress->phase, PI_PHASE_FINALIZING, __ATOMIC_RELAXED);
+    if (progress) PI_STORE(&progress->phase, PI_PHASE_FINALIZING);
 
     mp_bitcnt_t prec = (mp_bitcnt_t)(digits * 3.3219281) + 256;
     mpf_set_default_prec(prec);

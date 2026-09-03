@@ -15,6 +15,20 @@ enum {
     PI_PHASE_FINALIZING = 1
 };
 
+/* MSVC has no __atomic_* builtins; these flags only need relaxed ordering. */
+#if defined(_MSC_VER)
+#include <intrin.h>
+#define PI_LOAD(p)     (*(volatile int *)(p))
+#define PI_STORE(p, v) (*(volatile int *)(p) = (v))
+#define PI_INC(p)      _InterlockedIncrement((volatile long *)(p))
+#define PI_THREAD_LOCAL __declspec(thread)
+#else
+#define PI_LOAD(p)     __atomic_load_n((p), __ATOMIC_RELAXED)
+#define PI_STORE(p, v) __atomic_store_n((p), (v), __ATOMIC_RELAXED)
+#define PI_INC(p)      __atomic_add_fetch((p), 1, __ATOMIC_RELAXED)
+#define PI_THREAD_LOCAL __thread
+#endif
+
 typedef struct {
     volatile long leaves_done;
     long leaves_total;
