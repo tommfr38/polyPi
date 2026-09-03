@@ -1,0 +1,7 @@
+desktop/build/
+tools/wasm_build/
+tools/test_algo
+tools/test_engine
+*.o
+*.obj
+.DS_Store

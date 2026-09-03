@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>polyPi — count π in your browser</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <header>
+    <div class="logo">polyPi // web</div>
+    <h1><span class="pi-char">π</span> counter</h1>
+    <p class="subtitle">Client-side, exact, verified Chudnovsky computation running in WebAssembly — no server, nothing leaves your browser.</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="stage">
+        <canvas id="piCanvas"></canvas>
+        <div class="stage-overlay" id="stageOverlay">
+          <div class="big" id="overlayBig">COMPUTING</div>
+          <div id="overlaySmall">assembling digits</div>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <div class="field" style="flex: 2 1 260px;">
+          <label for="digitsInput">Digits</label>
+          <input type="number" id="digitsInput" min="1" max="1000000" value="10000" />
+          <div class="presets">
+            <button class="chip" data-digits="1000">1,000</button>
+            <button class="chip active" data-digits="10000">10,000</button>
+            <button class="chip" data-digits="100000">100,000</button>
+            <button class="chip" data-digits="1000000">1,000,000 (max)</button>
+          </div>
+        </div>
+        <div class="field" style="flex: 0 0 auto;">
+          <button class="primary" id="computeBtn">COMPUTE π</button>
+        </div>
+      </div>
+
+      <div class="controls-row" style="margin-top: 22px;">
+        <div class="field speed-block">
+          <div class="speed-head">
+            <label for="speedSlider">Speed / threads</label>
+            <span class="val">LOCKED ON WEB</span>
+          </div>
+          <div class="slider-wrap">
+            <input type="range" id="speedSlider" class="locked" min="1" max="10" value="1" readonly />
+          </div>
+          <div class="lock-note">Web is capped at 1,000,000 digits, single-threaded, ~5s max. The desktop app unlocks full multi-core speed.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel results" id="results">
+      <div class="results-head">
+        <div class="results-stats" id="resultsStats"></div>
+        <div class="actions">
+          <button class="secondary" id="copyBtn">COPY</button>
+          <button class="secondary" id="saveBtn">SAVE .TXT</button>
+        </div>
+      </div>
+      <div class="digits-box" id="digitsBox"></div>
+    </section>
+
+    <section class="panel desktop-cta">
+      <div class="logo" style="margin-bottom:0;">want more?</div>
+      <p>The desktop app for Mac and Windows computes into the billions of digits, multi-threaded across every core on your machine, with the full speed slider unlocked.</p>
+      <div class="cta-links">
+        <a href="#" id="desktopLink1">⬇ Download desktop app</a>
+        <a href="#" id="sourceLink1" class="ghost">View source code</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    polyPi — <a href="#" id="sourceLink2" style="color:inherit;">source</a> · <a href="#" id="desktopLink2" style="color:inherit;">desktop app</a>
+  </footer>
+
+  <div class="lock-toast" id="lockToast">
+    <strong>⚠ Due to browser limitations</strong>, you can't push the speed further here — only the <strong>desktop app for Mac and Windows</strong> can unlock full multi-core speed and billions of digits.
+    <div class="toast-links">
+      <a href="#" id="toastDesktop">Download the app</a>
+      <a href="#" id="toastSource">Source code</a>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

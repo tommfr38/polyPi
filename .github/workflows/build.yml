@@ -1,0 +1,78 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install cmake gmp sdl2
+
+      - name: Configure
+        run: cmake -B desktop/build -S desktop -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build desktop/build -j4
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp desktop/build/polyPi dist/polyPi-macos
+          chmod +x dist/polyPi-macos
+          cd dist && zip polyPi-macos.zip polyPi-macos
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: polyPi-macos
+          path: dist/polyPi-macos.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (vcpkg)
+        run: |
+          vcpkg install gmp:x64-windows sdl2:x64-windows curl:x64-windows
+
+      - name: Configure
+        run: >
+          cmake -B desktop/build -S desktop -A x64
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Build
+        run: cmake --build desktop/build --config Release
+
+      - name: Package
+        run: |
+          mkdir dist
+          copy desktop\build\Release\polyPi.exe dist\polyPi-windows.exe
+          Compress-Archive -Path dist\polyPi-windows.exe -DestinationPath dist\polyPi-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: polyPi-windows
+          path: dist/polyPi-windows.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/polyPi-macos/polyPi-macos.zip
+            dist/polyPi-windows/polyPi-windows.zip
