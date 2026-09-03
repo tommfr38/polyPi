@@ -1,7 +1,10 @@
 # polyPi
 
-Compute π to millions (web) or billions (desktop) of digits, fast, with a
-black/green "counting" visualization.
+A tool that helps you count Pi — to a million digits in the browser, or as far
+as your hardware allows on the desktop.
+
+- **Web app:** https://tommfr38.github.io/polyPi/
+- **Desktop app (macOS / Windows):** [latest release](https://github.com/tommfr38/polyPi/releases/latest)
 
 Two apps, one shared math core:
 
@@ -76,15 +79,26 @@ cmake -B build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpk
 cmake --build build --config Release
 ```
 
-## Publishing releases / enabling update checks
+## Releases
 
-`desktop/src/config.h` has `POLYPI_GITHUB_REPO` — set it to `owner/repo` once
-this is pushed to GitHub, so the in-app "Check for updates" button (and the
-automatic startup check) can hit the real releases API. Until then it fails
-gracefully with "Couldn't check for updates."
+Pushing a `v*` tag builds macOS and Windows binaries in CI and attaches them to
+a GitHub Release. The desktop app's update check (on startup, and via the
+"Check now" button) reads that same releases API.
 
-`web/app.js` has `DESKTOP_DOWNLOAD_URL` and `SOURCE_CODE_URL` constants at the
-top — point those at the GitHub releases page and repo once published.
+Bump `POLYPI_VERSION` in `desktop/src/config.h` and in `desktop/CMakeLists.txt`
+before tagging.
+
+## Icon
+
+`tools/make_icon.py` draws the app icon from the same geometric pi the particle
+field uses, and emits `.icns` (macOS bundle), `.ico` (Windows exe resource) and
+PNG/favicon variants into `desktop/assets/icon/`. Re-run it after changing the
+palette:
+
+```bash
+pip install Pillow
+python3 tools/make_icon.py desktop/assets/icon
+```
 
 ## Project layout
 

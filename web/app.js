@@ -1,8 +1,7 @@
 const MAX_WEB_DIGITS = 1000000;
 
-// TODO: fill these in once the repo is published.
-const DESKTOP_DOWNLOAD_URL = "#";
-const SOURCE_CODE_URL = "#";
+const DESKTOP_DOWNLOAD_URL = "https://github.com/tommfr38/polyPi/releases/latest";
+const SOURCE_CODE_URL = "https://github.com/tommfr38/polyPi";
 
 const els = {
   digits: document.getElementById("digitsInput"),

@@ -23,11 +23,11 @@ jobs:
         run: cmake --build desktop/build -j4
 
       - name: Package
+        # ditto keeps the .app bundle intact (resource forks, symlinks) in a
+        # way plain zip does not
         run: |
           mkdir -p dist
-          cp desktop/build/polyPi dist/polyPi-macos
-          chmod +x dist/polyPi-macos
-          cd dist && zip polyPi-macos.zip polyPi-macos
+          ditto -c -k --sequesterRsrc --keepParent desktop/build/polyPi.app dist/polyPi-macos.zip
 
       - uses: actions/upload-artifact@v4
         with:
@@ -52,10 +52,11 @@ jobs:
         run: cmake --build desktop/build --config Release
 
       - name: Package
+        shell: pwsh
+        # zip the whole Release dir so the vcpkg-deployed DLLs ship with the exe
         run: |
-          mkdir dist
-          copy desktop\build\Release\polyPi.exe dist\polyPi-windows.exe
-          Compress-Archive -Path dist\polyPi-windows.exe -DestinationPath dist\polyPi-windows.zip
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path desktop\build\Release\* -DestinationPath dist\polyPi-windows.zip
 
       - uses: actions/upload-artifact@v4
         with:

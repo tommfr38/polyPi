@@ -27,11 +27,31 @@ endif()
 if(APPLE)
   find_path(SDL2_INCLUDE_DIR SDL.h PATH_SUFFIXES SDL2 HINTS /opt/homebrew/include)
   find_library(SDL2_LIBRARY NAMES SDL2 HINTS /opt/homebrew/lib)
+  set(POLYPI_SDL_LIBS ${SDL2_LIBRARY})
 else()
   find_package(SDL2 REQUIRED)
+  # imported targets carry their own include dirs; SDL2main supplies WinMain
+  # for the WIN32 (no console window) subsystem.
+  set(POLYPI_SDL_LIBS SDL2::SDL2)
+  if(TARGET SDL2::SDL2main)
+    list(APPEND POLYPI_SDL_LIBS SDL2::SDL2main)
+  endif()
 endif()
 
-add_executable(polyPi
+# --- app icon ---
+set(ICON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/assets/icon)
+set(MACOSX_ICON ${ICON_DIR}/polypi.icns)
+set(POLYPI_PLATFORM_SOURCES "")
+
+if(APPLE)
+  set_source_files_properties(${MACOSX_ICON} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+  list(APPEND POLYPI_PLATFORM_SOURCES ${MACOSX_ICON})
+elseif(WIN32)
+  list(APPEND POLYPI_PLATFORM_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/polypi.rc)
+endif()
+
+add_executable(polyPi WIN32 MACOSX_BUNDLE
+  ${POLYPI_PLATFORM_SOURCES}
   src/main.cpp
   src/theme.cpp
   src/pi_worker.cpp
@@ -58,12 +78,23 @@ target_include_directories(polyPi PRIVATE
 )
 
 target_link_libraries(polyPi PRIVATE
-  ${SDL2_LIBRARY}
+  ${POLYPI_SDL_LIBS}
   OpenGL::GL
   ${GMP_LIBRARY}
   CURL::libcurl
   Threads::Threads
 )
+
+if(APPLE)
+  set_target_properties(polyPi PROPERTIES
+    MACOSX_BUNDLE_BUNDLE_NAME "polyPi"
+    MACOSX_BUNDLE_DISPLAY_NAME "polyPi"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "dev.polypi.app"
+    MACOSX_BUNDLE_BUNDLE_VERSION "0.1.0"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1.0"
+    MACOSX_BUNDLE_ICON_FILE "polypi.icns"
+  )
+endif()
 
 if(APPLE)
   target_link_libraries(polyPi PRIVATE "-framework CoreFoundation" "-framework Cocoa" "-framework IOKit")
@@ -72,5 +103,8 @@ endif()
 target_compile_definitions(polyPi PRIVATE POLYPI_VERSION="0.1.0")
 
 if(WIN32)
-  target_link_libraries(polyPi PRIVATE mingw32)
+  # ship the dependency DLLs beside the exe so it runs outside the build tree
+  add_custom_command(TARGET polyPi POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:polyPi> $<TARGET_RUNTIME_DLLS:polyPi>
+    COMMAND_EXPAND_LISTS)
 endif()
