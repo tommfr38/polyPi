@@ -7,10 +7,19 @@
 extern "C" {
 #endif
 
+/* Which stage a run is in. Counting is interruptible almost instantly;
+ * finalizing is a handful of big opaque GMP calls, so a cancel there only
+ * takes effect at the next stage boundary. */
+enum {
+    PI_PHASE_COUNTING = 0,
+    PI_PHASE_FINALIZING = 1
+};
+
 typedef struct {
     volatile long leaves_done;
     long leaves_total;
     volatile int cancel;
+    volatile int phase;
 } pi_progress_t;
 
 typedef struct {
@@ -34,8 +43,10 @@ void pi_bs_combine(const pi_bs_t *left, const pi_bs_t *right, pi_bs_t *out);
 long pi_terms_for_digits(long digits);
 
 /* Turn a finished (P,Q,T) for range [0,N) into a decimal string "3.1415...."
- * with exactly `digits` digits after the point. Caller frees with pi_free. */
-char *pi_finalize(long digits, const pi_bs_t *r);
+ * with exactly `digits` digits after the point. Caller frees with pi_free.
+ * `progress` may be NULL; when given, the phase is reported and the cancel
+ * flag is honoured between stages, in which case NULL is returned. */
+char *pi_finalize(long digits, const pi_bs_t *r, pi_progress_t *progress);
 
 void pi_free(char *s);
 

@@ -17,6 +17,7 @@
 #include "particles.h"
 #include "pi_worker.h"
 #include "updater.h"
+#include "widgets.h"
 #include "config.h"
 
 #include "fonts/font_ui.h"
@@ -74,6 +75,8 @@ int main(int, char **) {
     Uint32 windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_SHOWN;
     SDL_Window *window = SDL_CreateWindow("polyPi", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                            980, 760, windowFlags);
+    // the layout never scrolls, so don't let the window shrink below it
+    SDL_SetWindowMinimumSize(window, 760, 640);
     SDL_GLContext glContext = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, glContext);
     SDL_GL_SetSwapInterval(1);
@@ -111,6 +114,7 @@ int main(int, char **) {
 
     ParticleField field;
     bool fieldBuilt = false;
+    ImVec2 lastStage(0, 0);
     int animState = 0; // 0 idle, 1 forming/holding, 2 pulse
 
     static char digitsBuf[16] = "10000";
@@ -120,6 +124,7 @@ int main(int, char **) {
 
     DigitsView digitsView;
     bool hasResult = false;
+    bool cancelPending = false;
     std::string lastSavePath;
 
     bool running = true;
@@ -142,7 +147,8 @@ int main(int, char **) {
         ImGui::SetNextWindowSize(vp->WorkSize);
         ImGui::Begin("polyPi", nullptr,
                       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                          ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
+                          ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
         // two-tone wordmark, matching the web app
         ImGui::PushFont(fontDisplay);
@@ -195,12 +201,23 @@ int main(int, char **) {
         ImGui::Spacing();
 
         // ---- particle stage ----
-        ImVec2 stageSize = ImVec2(ImGui::GetContentRegionAvail().x, 260);
+        // The window never scrolls, so the stage yields height to whatever
+        // else needs to be on screen instead of pushing content off the edge.
+        const float kControlsHeight = 250.0f; // digits row + speed + action button
+        float availForStage = ImGui::GetContentRegionAvail().y - kControlsHeight -
+                              (hasResult ? 150.0f : 0.0f);
+        float stageH = availForStage;
+        if (stageH < 110.0f) stageH = 110.0f;
+        if (stageH > 260.0f) stageH = 260.0f;
+        ImVec2 stageSize = ImVec2(ImGui::GetContentRegionAvail().x, stageH);
         ImGui::BeginChild("stage", stageSize, true, ImGuiWindowFlags_NoScrollbar);
         ImVec2 p0 = ImGui::GetWindowPos();
         ImVec2 p1 = ImVec2(p0.x + ImGui::GetWindowSize().x, p0.y + ImGui::GetWindowSize().y);
-        if (!fieldBuilt) {
+        // stage height flexes with the layout, so rebuild when it actually moves
+        if (!fieldBuilt || std::fabs(p1.x - p0.x - lastStage.x) > 1.0f ||
+            std::fabs(p1.y - p0.y - lastStage.y) > 1.0f) {
             field.build(p0, p1);
+            lastStage = ImVec2(p1.x - p0.x, p1.y - p0.y);
             fieldBuilt = true;
         }
 
@@ -252,9 +269,11 @@ int main(int, char **) {
         }
 
         ImGui::Spacing();
-        ImGui::Text("Speed (%d threads available)", maxThreads);
-        ImGui::SetNextItemWidth(300);
-        ImGui::SliderInt("##threads", &threadCount, 1, maxThreads, "%d threads");
+        ImGui::Text("Speed");
+        widgets::SmoothSliderInt("threads", &threadCount, 1, maxThreads, 320.0f, io.DeltaTime);
+        ImGui::SameLine();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextColored(ImVec4(0.24f, 0.86f, 0.47f, 1.0f), "%d / %d threads", threadCount, maxThreads);
         ImGui::TextDisabled("More threads = faster on large digit counts.");
 
         ImGui::Spacing();
@@ -266,18 +285,38 @@ int main(int, char **) {
                 worker.start(digitsWanted, threadCount);
             }
         } else {
-            ImGui::BeginDisabled(false);
+            // Formatting is a few big opaque GMP calls; a cancel there can't
+            // land until the current one ends, so don't offer a button that
+            // would look broken - say what's happening instead.
+            const bool finalizing = worker.isFinalizing();
+            ImGui::BeginDisabled(finalizing);
             if (ImGui::Button("CANCEL", ImVec2(200, 42))) {
                 worker.cancel();
+                cancelPending = true;
             }
             ImGui::EndDisabled();
+            if (finalizing && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                ImGui::SetTooltip("Writing out the digits - this last step can't be interrupted.");
+            }
         }
 
         if (isRunning) {
             ImGui::SameLine();
-            ImGui::Text("%.1fs elapsed  |  ~%s digits/sec", worker.elapsedMs() / 1000.0,
-                        std::to_string(worker.digitsPerSecEstimate()).c_str());
+            if (worker.isFinalizing()) {
+                ImGui::TextDisabled("writing out the digits...");
+            } else if (cancelPending) {
+                ImGui::TextDisabled("stopping...");
+            } else {
+                ImGui::Text("%.1fs elapsed  |  ~%s digits/sec", worker.elapsedMs() / 1000.0,
+                            std::to_string(worker.digitsPerSecEstimate()).c_str());
+            }
             ImGui::ProgressBar((float)worker.progress(), ImVec2(-1, 8), "");
+        }
+
+        // a cancelled run leaves the glyph half-assembled; settle it back to idle
+        if (cancelPending && !isRunning) {
+            cancelPending = false;
+            if (worker.wasCancelled()) animState = 0;
         }
 
         if (worker.isDone() && !hasResult) {
@@ -316,7 +355,10 @@ int main(int, char **) {
                 ImGui::TextDisabled("saved: %s", lastSavePath.c_str());
             }
 
-            ImGui::BeginChild("digits_box", ImVec2(0, 220), true);
+            // take exactly what's left so the window never needs to scroll
+            float boxH = ImGui::GetContentRegionAvail().y;
+            if (boxH < 80.0f) boxH = 80.0f;
+            ImGui::BeginChild("digits_box", ImVec2(0, boxH), true);
             ImGui::PushFont(fontMono); // digits have to line up in columns
             ImGuiListClipper clipper;
             clipper.Begin(digitsView.lineCount());

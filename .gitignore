@@ -2,6 +2,7 @@ desktop/build/
 tools/wasm_build/
 tools/test_algo
 tools/test_engine
+tools/test_cancel
 *.o
 *.obj
 .DS_Store

@@ -15,6 +15,11 @@ public:
     bool isRunning() const { return running_.load(); }
     bool isDone() const { return done_.load(); }
     bool hasError() const { return error_.load(); }
+    bool wasCancelled() const { return cancelled_.load(); }
+
+    // true once the run has moved past counting into the (largely
+    // uninterruptible) formatting stage
+    bool isFinalizing() const;
 
     double progress() const;
     long elapsedMs() const;
@@ -36,6 +41,7 @@ private:
     std::atomic<bool> running_{false};
     std::atomic<bool> done_{false};
     std::atomic<bool> error_{false};
+    std::atomic<bool> cancelled_{false};
 
     std::chrono::steady_clock::time_point startTime_;
     std::chrono::steady_clock::time_point endTime_;

@@ -37,6 +37,7 @@ add_executable(polyPi
   src/pi_worker.cpp
   src/particles.cpp
   src/updater.cpp
+  src/widgets.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/../core/pi_engine.c
   ${IMGUI_DIR}/imgui.cpp
   ${IMGUI_DIR}/imgui_draw.cpp

@@ -43,11 +43,19 @@ void pi_bs_combine(const pi_bs_t *left, const pi_bs_t *right, pi_bs_t *out) {
     mpz_clear(t2);
 }
 
+static int cancelled(const pi_progress_t *progress) {
+    return progress && __atomic_load_n(&progress->cancel, __ATOMIC_RELAXED);
+}
+
+static void set_identity(pi_bs_t *out) {
+    mpz_set_ui(out->P, 1);
+    mpz_set_ui(out->Q, 1);
+    mpz_set_ui(out->T, 0);
+}
+
 void pi_bs_compute(long a, long b, pi_bs_t *out, pi_progress_t *progress) {
-    if (progress && progress->cancel) {
-        mpz_set_ui(out->P, 1);
-        mpz_set_ui(out->Q, 1);
-        mpz_set_ui(out->T, 0);
+    if (cancelled(progress)) {
+        set_identity(out);
         return;
     }
 
@@ -89,16 +97,29 @@ void pi_bs_compute(long a, long b, pi_bs_t *out, pi_progress_t *progress) {
     pi_bs_init(&right);
     pi_bs_compute(a, m, &left, progress);
     pi_bs_compute(m, b, &right, progress);
-    pi_bs_combine(&left, &right, out);
+    /* The merges are where the huge multiplications live, and they happen as
+     * the recursion unwinds. Without this check a cancel still has to grind
+     * through one full-size mpz_mul per stack level before it takes effect. */
+    if (cancelled(progress)) {
+        set_identity(out);
+    } else {
+        pi_bs_combine(&left, &right, out);
+    }
     pi_bs_clear(&left);
     pi_bs_clear(&right);
 }
 
-char *pi_finalize(long digits, const pi_bs_t *r) {
+char *pi_finalize(long digits, const pi_bs_t *r, pi_progress_t *progress) {
+    if (progress) __atomic_store_n(&progress->phase, PI_PHASE_FINALIZING, __ATOMIC_RELAXED);
+
     mp_bitcnt_t prec = (mp_bitcnt_t)(digits * 3.3219281) + 256;
     mpf_set_default_prec(prec);
 
     mpf_t Qf, Tf, sqrtC, num, pi;
+    mp_exp_t exp;
+    char *raw = NULL;
+    char *out = NULL;
+
     mpf_init(Qf);
     mpf_init(Tf);
     mpf_init(sqrtC);
@@ -108,22 +129,28 @@ char *pi_finalize(long digits, const pi_bs_t *r) {
     mpf_set_z(Qf, r->Q);
     mpf_set_z(Tf, r->T);
 
+    /* Each of the steps below is a single opaque GMP call, so the cancel flag
+     * can only be honoured between them - the string conversion in particular
+     * is the largest uninterruptible chunk of a run. */
+    if (cancelled(progress)) goto done;
     mpf_sqrt_ui(sqrtC, 10005);
     mpf_mul(num, Qf, sqrtC);
     mpf_mul_ui(num, num, 426880);
 
+    if (cancelled(progress)) goto done;
     mpf_div(pi, num, Tf);
 
+    if (cancelled(progress)) goto done;
     /* format with gmp: get exactly digits+1 significant digits (leading "3") */
-    mp_exp_t exp;
-    char *raw = mpf_get_str(NULL, &exp, 10, digits + 1, pi);
+    raw = mpf_get_str(NULL, &exp, 10, digits + 1, pi);
 
-    char *out = (char *)malloc(digits + 3);
+    out = (char *)malloc(digits + 3);
     out[0] = raw[0];
     out[1] = '.';
     memcpy(out + 2, raw + 1, digits);
     out[digits + 2] = '\0';
 
+done:
     free(raw);
     mpf_clear(Qf);
     mpf_clear(Tf);
@@ -149,12 +176,13 @@ int pi_compute(long digits, pi_progress_t *progress, char **out) {
     pi_bs_init(&r);
     pi_bs_compute(0, terms, &r, progress);
 
-    if (progress && progress->cancel) {
+    if (cancelled(progress)) {
         pi_bs_clear(&r);
         return -2;
     }
 
-    *out = pi_finalize(digits, &r);
+    *out = pi_finalize(digits, &r, progress);
     pi_bs_clear(&r);
+    if (!*out) return -2;
     return 0;
 }

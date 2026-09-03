@@ -14,7 +14,7 @@ PiWorker::~PiWorker() {
 }
 
 void PiWorker::cancel() {
-    if (progress_) progress_->p.cancel = 1;
+    if (progress_) __atomic_store_n(&progress_->p.cancel, 1, __ATOMIC_RELAXED);
 }
 
 void PiWorker::start(long digits, int threads) {
@@ -28,6 +28,7 @@ void PiWorker::start(long digits, int threads) {
     lastThreads_ = threads;
     done_ = false;
     error_ = false;
+    cancelled_ = false;
     running_ = true;
     startTime_ = std::chrono::steady_clock::now();
 
@@ -64,10 +65,11 @@ void PiWorker::run(long digits, int threads) {
     }
     for (auto &t : workers) t.join();
 
-    if (progress_->p.cancel) {
+    if (__atomic_load_n(&progress_->p.cancel, __ATOMIC_RELAXED)) {
         for (auto &c : chunks) pi_bs_clear(&c);
-        running_ = false;
         endTime_ = std::chrono::steady_clock::now();
+        cancelled_ = true;
+        running_ = false;
         return;
     }
 
@@ -85,7 +87,17 @@ void PiWorker::run(long digits, int threads) {
         acc = next;
     }
 
-    char *out = pi_finalize(digits, &acc);
+    char *out = pi_finalize(digits, &acc, &progress_->p);
+
+    pi_bs_clear(&acc);
+    for (auto &c : chunks) pi_bs_clear(&c);
+    endTime_ = std::chrono::steady_clock::now();
+
+    if (!out) { // cancelled part-way through finalizing
+        cancelled_ = true;
+        running_ = false;
+        return;
+    }
 
     {
         std::lock_guard<std::mutex> lock(resultMutex_);
@@ -93,12 +105,13 @@ void PiWorker::run(long digits, int threads) {
     }
     pi_free(out);
 
-    pi_bs_clear(&acc);
-    for (auto &c : chunks) pi_bs_clear(&c);
-
-    endTime_ = std::chrono::steady_clock::now();
     running_ = false;
     done_ = true;
+}
+
+bool PiWorker::isFinalizing() const {
+    if (!progress_) return false;
+    return __atomic_load_n(&progress_->p.phase, __ATOMIC_RELAXED) == PI_PHASE_FINALIZING;
 }
 
 double PiWorker::progress() const {
