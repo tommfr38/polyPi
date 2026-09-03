@@ -1,6 +1,12 @@
-importScripts("wasm/pi.js");
+// pi.js and pi.wasm are a matched pair - a cached copy of one against a fresh
+// copy of the other breaks at runtime, so both carry the version app.js passed
+// on this worker's own URL.
+const V = new URLSearchParams(self.location.search).get("v") || "";
+const stamp = (path) => (V ? path + "?v=" + encodeURIComponent(V) : path);
 
-let modulePromise = PiModule({ locateFile: (path) => "wasm/" + path });
+importScripts(stamp("wasm/pi.js"));
+
+let modulePromise = PiModule({ locateFile: (path) => stamp("wasm/" + path) });
 
 self.onmessage = async (e) => {
   const { digits } = e.data;

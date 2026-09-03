@@ -1,5 +1,9 @@
 const MAX_WEB_DIGITS = 1000000;
 
+// Bump when the wasm is rebuilt: busts caches for worker.js, pi.js and
+// pi.wasm together, so a visitor never runs a mismatched pair.
+const BUILD = "0.1.2";
+
 const DESKTOP_DOWNLOAD_URL = "https://github.com/tommfr38/polyPi/releases/latest";
 const SOURCE_CODE_URL = "https://github.com/tommfr38/polyPi";
 
@@ -176,7 +180,7 @@ requestAnimationFrame(drawFrame);
 
 // ---------- worker ----------
 
-const worker = new Worker("worker.js");
+const worker = new Worker("worker.js?v=" + encodeURIComponent(BUILD));
 let pending = false;
 
 worker.onmessage = (e) => {

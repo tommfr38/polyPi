@@ -141,14 +141,26 @@ char *pi_finalize(long digits, const pi_bs_t *r, pi_progress_t *progress) {
     mpf_div(pi, num, Tf);
 
     if (cancelled(progress)) goto done;
-    /* format with gmp: get exactly digits+1 significant digits (leading "3") */
+    /* ask for digits+1 significant digits (the leading "3" plus the rest) */
     raw = mpf_get_str(NULL, &exp, 10, digits + 1, pi);
+    if (!raw || raw[0] == '\0') goto done;
 
-    out = (char *)malloc(digits + 3);
-    out[0] = raw[0];
-    out[1] = '.';
-    memcpy(out + 2, raw + 1, digits);
-    out[digits + 2] = '\0';
+    {
+        /* mpf_get_str strips trailing zeros, so it can legitimately hand back
+         * fewer characters than were asked for - roughly one digit count in
+         * ten. Copying a fixed `digits` bytes then reads past its buffer,
+         * which traps under wasm and silently yields a junk digit natively. */
+        size_t got = strlen(raw);
+        size_t after_point = got - 1;
+        size_t copy = after_point < (size_t)digits ? after_point : (size_t)digits;
+
+        out = (char *)malloc(digits + 3);
+        out[0] = raw[0];
+        out[1] = '.';
+        memcpy(out + 2, raw + 1, copy);
+        memset(out + 2 + copy, '0', (size_t)digits - copy);
+        out[digits + 2] = '\0';
+    }
 
 done:
     free(raw);

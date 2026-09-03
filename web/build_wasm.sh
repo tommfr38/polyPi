@@ -30,6 +30,7 @@ emcc -O3 \
   -s EXPORT_ES6=0 \
   -s ENVIRONMENT=worker \
   -s ALLOW_MEMORY_GROWTH=1 \
+  -s STACK_SIZE=16777216 \
   -s EXPORTED_FUNCTIONS=_wasm_compute_pi,_wasm_free,_malloc,_free \
   -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,UTF8ToString \
   -s SINGLE_FILE=0 \
