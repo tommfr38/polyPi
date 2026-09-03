@@ -19,6 +19,10 @@
 #include "updater.h"
 #include "config.h"
 
+#include "fonts/font_ui.h"
+#include "fonts/font_display.h"
+#include "fonts/font_mono.h"
+
 static ImU32 col(const float c[4]) {
     return IM_COL32((int)(c[0] * 255), (int)(c[1] * 255), (int)(c[2] * 255), (int)(c[3] * 255));
 }
@@ -79,6 +83,24 @@ int main(int, char **) {
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
+    // ImGui lays out in window points but renders into the (possibly 2x)
+    // drawable, so rasterize glyphs at the pixel scale and scale the layout
+    // back down - otherwise every label is a blurry upscale.
+    int winW = 0, winH = 0, drawW = 0, drawH = 0;
+    SDL_GetWindowSize(window, &winW, &winH);
+    SDL_GL_GetDrawableSize(window, &drawW, &drawH);
+    float dpi = (winW > 0) ? (float)drawW / (float)winW : 1.0f;
+    if (dpi < 1.0f) dpi = 1.0f;
+
+    ImFont *fontUI = io.Fonts->AddFontFromMemoryCompressedTTF(
+        SpaceGroteskMedium_compressed_data, SpaceGroteskMedium_compressed_size, 17.0f * dpi);
+    ImFont *fontDisplay = io.Fonts->AddFontFromMemoryCompressedTTF(
+        SpaceGroteskBold_compressed_data, SpaceGroteskBold_compressed_size, 34.0f * dpi);
+    ImFont *fontMono = io.Fonts->AddFontFromMemoryCompressedTTF(
+        JetBrainsMono_compressed_data, JetBrainsMono_compressed_size, 14.0f * dpi);
+    io.FontDefault = fontUI;
+    io.FontGlobalScale = 1.0f / dpi;
+
     theme::apply();
     ImGui_ImplSDL2_InitForOpenGL(window, glContext);
     ImGui_ImplOpenGL3_Init(glsl_version);
@@ -122,10 +144,11 @@ int main(int, char **) {
                       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                           ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
-        ImGui::PushFont(nullptr);
-        ImGui::SetWindowFontScale(1.7f);
-        ImGui::TextColored(ImVec4(0.24f, 0.86f, 0.47f, 1.0f), "polyPi");
-        ImGui::SetWindowFontScale(1.0f);
+        // two-tone wordmark, matching the web app
+        ImGui::PushFont(fontDisplay);
+        ImGui::TextColored(ImVec4(0.43f, 0.60f, 0.49f, 1.0f), "poly");
+        ImGui::SameLine(0, 0);
+        ImGui::TextColored(ImVec4(0.24f, 0.86f, 0.47f, 1.0f), "Pi");
         ImGui::PopFont();
 
         ImGui::TextDisabled("A tool that helps you count Pi.  -  v" POLYPI_VERSION);
@@ -133,7 +156,12 @@ int main(int, char **) {
 
         // ---- update banner ----
         {
-            ImGui::BeginChild("update_bar", ImVec2(0, 34), true, ImGuiWindowFlags_NoScrollbar);
+            // The window-wide 18px padding is far too generous for a one-line
+            // bar: with it, the row gets clipped. Size the bar from real metrics.
+            const ImVec2 barPad(12, 7);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, barPad);
+            float barH = ImGui::GetFrameHeight() + barPad.y * 2.0f;
+            ImGui::BeginChild("update_bar", ImVec2(0, barH), true, ImGuiWindowFlags_NoScrollbar);
             ImGui::AlignTextToFramePadding();
             if (updater.isChecking()) {
                 ImGui::TextDisabled("Checking for updates...");
@@ -156,9 +184,12 @@ int main(int, char **) {
             } else {
                 ImGui::TextDisabled(" ");
             }
-            ImGui::SameLine(ImGui::GetWindowWidth() - 110);
-            if (ImGui::SmallButton("Check now")) updater.checkAsync();
+            const char *checkLabel = "Check now";
+            float checkW = ImGui::CalcTextSize(checkLabel).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+            ImGui::SameLine(ImGui::GetContentRegionMax().x - checkW);
+            if (ImGui::Button(checkLabel)) updater.checkAsync();
             ImGui::EndChild();
+            ImGui::PopStyleVar();
         }
 
         ImGui::Spacing();
@@ -169,8 +200,7 @@ int main(int, char **) {
         ImVec2 p0 = ImGui::GetWindowPos();
         ImVec2 p1 = ImVec2(p0.x + ImGui::GetWindowSize().x, p0.y + ImGui::GetWindowSize().y);
         if (!fieldBuilt) {
-            ImVec2 margin(stageSize.x * 0.28f, 20);
-            field.build(ImVec2(p0.x + margin.x, p0.y + margin.y), ImVec2(p1.x - margin.x, p1.y - margin.y));
+            field.build(p0, p1);
             fieldBuilt = true;
         }
 
@@ -194,8 +224,10 @@ int main(int, char **) {
         // ---- controls ----
         ImGui::Text("Digits");
         ImGui::SetNextItemWidth(200);
+        ImGui::PushFont(fontMono);
         bool enterPressed = ImGui::InputText("##digits", digitsBuf, sizeof(digitsBuf),
                                               ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::PopFont();
         ImGui::SameLine();
         for (int i = 0; i < 7; i++) {
             ImGui::PushID(i);
@@ -263,12 +295,15 @@ int main(int, char **) {
             ImGui::TextColored(ImVec4(0.66f, 1.0f, 0.81f, 1.0f), "%ld digits in %.2fs  |  %d threads",
                                 shown, worker.elapsedMs() / 1000.0, worker.lastThreads());
 
-            ImGui::SameLine(ImGui::GetWindowWidth() - 220);
-            if (ImGui::SmallButton("Copy")) {
+            const ImGuiStyle &st = ImGui::GetStyle();
+            float copyW = ImGui::CalcTextSize("Copy").x + st.FramePadding.x * 2.0f;
+            float saveW = ImGui::CalcTextSize("Save .txt").x + st.FramePadding.x * 2.0f;
+            ImGui::SameLine(ImGui::GetContentRegionMax().x - copyW - saveW - st.ItemSpacing.x);
+            if (ImGui::Button("Copy")) {
                 SDL_SetClipboardText(digitsView.text.c_str());
             }
             ImGui::SameLine();
-            if (ImGui::SmallButton("Save .txt")) {
+            if (ImGui::Button("Save .txt")) {
                 std::time_t t = std::time(nullptr);
                 char fname[64];
                 std::strftime(fname, sizeof(fname), "pi_%Y%m%d_%H%M%S.txt", std::localtime(&t));
@@ -282,6 +317,7 @@ int main(int, char **) {
             }
 
             ImGui::BeginChild("digits_box", ImVec2(0, 220), true);
+            ImGui::PushFont(fontMono); // digits have to line up in columns
             ImGuiListClipper clipper;
             clipper.Begin(digitsView.lineCount());
             while (clipper.Step()) {
@@ -291,6 +327,7 @@ int main(int, char **) {
                 }
             }
             clipper.End();
+            ImGui::PopFont();
             ImGui::EndChild();
         }
 

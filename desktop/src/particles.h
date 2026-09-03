@@ -19,7 +19,8 @@ public:
 
 private:
     struct Particle {
-        ImVec2 start;
+        ImVec2 idle;       // resting spot, spread across the stage
+        ImVec2 start;      // off-stage launch point for the formation sweep
         ImVec2 target;
         ImVec2 pos;
         float delayFrac;   // 0..1 offset into the formation order

@@ -10,22 +10,30 @@ static float easeOutBack(float t) {
 }
 
 void ParticleField::build(ImVec2 boundsMin, ImVec2 boundsMax, int count) {
+    // Caller hands us the whole stage: idle dust fills all of it, while the
+    // glyph itself sits in a centered box so the pi keeps its proportions.
     boundsMin_ = boundsMin;
     boundsMax_ = boundsMax;
-    float w = boundsMax.x - boundsMin.x;
-    float h = boundsMax.y - boundsMin.y;
-    float cx = boundsMin.x + w * 0.5f;
-    float cy = boundsMin.y + h * 0.5f;
+    float stageW = boundsMax.x - boundsMin.x;
+    float stageH = boundsMax.y - boundsMin.y;
+
+    ImVec2 gMin(boundsMin.x + stageW * 0.28f, boundsMin.y + stageH * 0.08f);
+    ImVec2 gMax(boundsMax.x - stageW * 0.28f, boundsMax.y - stageH * 0.08f);
+
+    float w = gMax.x - gMin.x;
+    float h = gMax.y - gMin.y;
+    float cx = gMin.x + w * 0.5f;
+    float cy = gMin.y + h * 0.5f;
 
     // Geometric pi (π) glyph: a top bar + two legs, built as target sample points.
     float barH = h * 0.16f;
-    float barY0 = boundsMin.y + h * 0.14f;
+    float barY0 = gMin.y + h * 0.14f;
     float barY1 = barY0 + barH;
-    float barX0 = boundsMin.x + w * 0.12f;
-    float barX1 = boundsMax.x - w * 0.12f;
+    float barX0 = gMin.x + w * 0.12f;
+    float barX1 = gMax.x - w * 0.12f;
 
     float legW = w * 0.14f;
-    float legY1 = boundsMax.y - h * 0.10f;
+    float legY1 = gMax.y - h * 0.10f;
     float leg1X0 = barX0 + w * 0.05f;
     float leg2X0 = barX1 - w * 0.05f - legW;
 
@@ -72,8 +80,11 @@ void ParticleField::build(ImVec2 boundsMin, ImVec2 boundsMax, int count) {
         float ang = angleDist(rng);
         float dist = distDist(rng) * maxDim;
         p.start = ImVec2(cx + std::cos(ang) * dist, cy + std::sin(ang) * dist);
+        // idle rest spread over the whole stage, so waiting looks like a
+        // field of dust rather than two clumps against the side walls
+        p.idle = ImVec2(boundsMin.x + u01(rng) * stageW, boundsMin.y + u01(rng) * stageH);
         p.target = targets[i];
-        p.pos = p.start;
+        p.pos = p.idle;
         p.delayFrac = (float)i / (float)targets.size();
         p.jitterPhase = u01(rng) * 6.28318f;
         p.radius = 1.3f + u01(rng) * 1.3f;
@@ -91,8 +102,9 @@ void ParticleField::setProgress(float p) { progress_ = std::clamp(p, 0.0f, 1.0f)
 void ParticleField::update(float dtSeconds, double nowSeconds) {
     if (state_ == 0) {
         for (auto &p : particles_) {
-            float drift = std::sin((float)nowSeconds * 0.6f + p.jitterPhase) * 1.5f;
-            p.pos = ImVec2(p.start.x, p.start.y + drift);
+            float driftY = std::sin((float)nowSeconds * 0.5f + p.jitterPhase) * 2.0f;
+            float driftX = std::cos((float)nowSeconds * 0.35f + p.jitterPhase) * 1.5f;
+            p.pos = ImVec2(p.idle.x + driftX, p.idle.y + driftY);
         }
     } else if (state_ == 1) {
         for (auto &p : particles_) {
@@ -127,10 +139,20 @@ void ParticleField::draw(ImDrawList *dl, ImU32 colorRGB) const {
     if (state_ == 2) {
         glow = std::sin(pulseT_ * 3.14159f) * 3.0f;
     }
+
+    // idle sits back as dim dust; forming/pulse burn bright
+    const bool idle = (state_ == 0);
+    const float sizeScale = idle ? 0.6f : 1.0f;
+    const int haloAlpha = idle ? 0 : 30;
+    ImU32 core = colorRGB;
+    if (idle) {
+        core = (colorRGB & 0x00FFFFFF) | ((ImU32)90 << IM_COL32_A_SHIFT);
+    }
+
     for (auto &p : particles_) {
-        float r = p.radius + glow;
+        float r = (p.radius + glow) * sizeScale;
         // cheap glow: faint larger circle behind a bright core
-        dl->AddCircleFilled(p.pos, r * 2.2f, IM_COL32(57, 255, 106, 30));
-        dl->AddCircleFilled(p.pos, r, colorRGB);
+        if (haloAlpha > 0) dl->AddCircleFilled(p.pos, r * 2.2f, IM_COL32(61, 220, 120, haloAlpha));
+        dl->AddCircleFilled(p.pos, r, core);
     }
 }
