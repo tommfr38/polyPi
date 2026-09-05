@@ -17,10 +17,13 @@ jobs:
         run: brew install cmake gmp sdl2
 
       - name: Configure
-        run: cmake -B desktop/build -S desktop -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B desktop/build -S desktop -DCMAKE_BUILD_TYPE=Release -DPOLYPI_BUILD_TESTS=ON
 
       - name: Build
         run: cmake --build desktop/build -j4
+
+      - name: Self-test
+        run: desktop/build/tests/pi_selftest
 
       - name: Package
         # ditto keeps the .app bundle intact (resource forks, symlinks) in a
@@ -46,10 +49,14 @@ jobs:
       - name: Configure
         run: >
           cmake -B desktop/build -S desktop -A x64
+          -DPOLYPI_BUILD_TESTS=ON
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build
         run: cmake --build desktop/build --config Release
+
+      - name: Self-test
+        run: desktop/build/tests/pi_selftest.exe
 
       - name: Package
         shell: pwsh

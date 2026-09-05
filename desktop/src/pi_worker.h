@@ -7,6 +7,10 @@
 
 class PiWorker {
 public:
+    // Largest digit count this build can represent - see pi_max_digits().
+    // Callers must clamp to it: past this the run returns nonsense.
+    static long maxDigits();
+
     ~PiWorker();
 
     void start(long digits, int threads);
@@ -17,7 +21,11 @@ public:
     bool hasError() const { return error_.load(); }
     bool wasCancelled() const { return cancelled_.load(); }
 
-    // true once the run has moved past counting into the (largely
+    // true while the per-thread partial results are being merged: the leaf
+    // counter has already hit 100%, so without this the run looks stalled
+    bool isMerging() const;
+
+    // true once the run has moved past merging into the (largely
     // uninterruptible) formatting stage
     bool isFinalizing() const;
 

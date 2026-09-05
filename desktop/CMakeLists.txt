@@ -13,6 +13,15 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+if(MSVC)
+  # CMake defaults to /EHsc, whose "c" half tells the compiler that extern "C"
+  # functions never throw - so it skips the unwind code for them. The GMP
+  # allocation hooks in pi_worker.cpp are extern "C" and throw bad_alloc on
+  # purpose, which under /EHsc terminates instead of unwinding (warning C4297).
+  # /EHs is the same model without that assumption.
+  string(REPLACE "/EHsc" "/EHs" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+endif()
+
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
 
 find_package(OpenGL REQUIRED)
@@ -111,4 +120,34 @@ if(WIN32)
   add_custom_command(TARGET polyPi POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:polyPi> $<TARGET_RUNTIME_DLLS:polyPi>
     COMMAND_EXPAND_LISTS)
+endif()
+
+# --- self-test ---
+# Links the engine and the worker without the UI, so CI can actually run the
+# threaded chunk-and-merge path instead of only compiling it. Off by default,
+# and kept out of the app's output directory so it never lands in a release.
+option(POLYPI_BUILD_TESTS "Build the engine/worker self-test" OFF)
+
+if(POLYPI_BUILD_TESTS)
+  add_executable(pi_selftest
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tools/test_worker.cpp
+    src/pi_worker.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../core/pi_engine.c
+  )
+  target_include_directories(pi_selftest PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${GMP_INCLUDE_DIR}
+  )
+  target_link_libraries(pi_selftest PRIVATE ${GMP_LIBRARY} Threads::Threads)
+  set_target_properties(pi_selftest PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/tests
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/tests
+  )
+  # On Windows the vcpkg toolchain's applocal deployment puts gmp.dll next to
+  # each executable it builds, including this one.
+
+  enable_testing()
+  add_test(NAME selftest COMMAND pi_selftest)
 endif()

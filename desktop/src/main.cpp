@@ -5,6 +5,7 @@
 #include "backends/imgui_impl_opengl3.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -260,15 +261,25 @@ int main(int, char **) {
         }
         ImGui::NewLine();
 
-        long digitsWanted = std::atol(digitsBuf);
+        // The ceiling is what GMP can represent, not a round number: on
+        // Windows its bit counter is 32-bit, so past ~1.29 billion digits the
+        // working precision wraps and the run returns nonsense.
+        const long kMaxDigits = PiWorker::maxDigits();
+        // strtol, not atol: atol is undefined on overflow, and this box will
+        // happily take more digits than a long can hold
+        long digitsWanted = std::strtol(digitsBuf, nullptr, 10);
         if (digitsWanted < 1) digitsWanted = 1;
-        if (digitsWanted > 2000000000L) digitsWanted = 2000000000L;
+        if (digitsWanted > kMaxDigits) digitsWanted = kMaxDigits;
 
-        // Measured peak is ~21 bytes per digit, dominated by the merge phase
-        // of the binary splitting - so the ceiling is RAM, not patience, and
-        // overshooting it kills the run mid-count. Say so up front.
+        // Peak is still dominated by the merge phase of the binary splitting,
+        // so the ceiling is RAM, not patience, and overshooting it kills the
+        // run mid-count. Say so up front.
+        //
+        // 13 bytes/digit is the old measured 21 scaled by the drop in live
+        // data from merging in place (~37%, same at every size tried). Worth
+        // re-measuring against a real run rather than trusting the scaling.
         {
-            double needGB = digitsWanted * 21.0 / 1073741824.0;
+            double needGB = digitsWanted * 13.0 / 1073741824.0;
             int ramMB = SDL_GetSystemRAM();
             double ramGB = ramMB > 0 ? ramMB / 1024.0 : 0.0;
             if (needGB >= 0.5) {
@@ -328,6 +339,10 @@ int main(int, char **) {
                 ImGui::TextDisabled("writing out the digits...");
             } else if (cancelPending) {
                 ImGui::TextDisabled("stopping...");
+            } else if (worker.isMerging()) {
+                // the leaf counter is at 100% here; say what is happening
+                // rather than showing a full bar and no movement
+                ImGui::TextDisabled("merging the pieces...");
             } else {
                 ImGui::Text("%.1fs elapsed  |  ~%s digits/sec", worker.elapsedMs() / 1000.0,
                             std::to_string(worker.digitsPerSecEstimate()).c_str());
